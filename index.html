@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Object Dimension Measurement</title>
+  <style>
+    body { text-align: center; font-family: Arial; }
+    #container { position: relative; display: inline-block; }
+    img { max-width: 80%; border: 2px solid black; }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: red;
+      position: absolute;
+      pointer-events: none;
+    }
+    #result { margin-top: 20px; font-size: 18px; font-weight: bold; color: navy; }
+  </style>
+</head>
+<body>
+  <h1>Click Two Points on the Object</h1>
+  <div id="container">
+    <img id="image" src="{{ url_for('static', filename='rubixcube1.jpg') }}">
+  </div>
+  <div id="result">Waiting for clicks...</div>
+
+  <script>
+    const img = document.getElementById("image");
+    const resultDiv = document.getElementById("result");
+    const container = img.parentElement;
+    let points = [];
+
+    img.addEventListener("click", (e) => {
+      const rect = img.getBoundingClientRect();
+
+      // Scale factor (image pixels vs displayed pixels)
+      const scaleX = img.naturalWidth / rect.width;
+      const scaleY = img.naturalHeight / rect.height;
+
+      // Coordinates relative to image
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+
+      const imgX = Math.round(clientX * scaleX);
+      const imgY = Math.round(clientY * scaleY);
+
+      points.push({x: imgX, y: imgY});
+
+      // Draw red dot at click
+      const dot = document.createElement("div");
+      dot.classList.add("dot");
+      dot.style.left = (clientX - 6) + "px";
+      dot.style.top = (clientY - 6) + "px";
+      container.appendChild(dot);
+
+      if (points.length === 1) {
+        resultDiv.innerHTML = `P1 = (${imgX}, ${imgY}) — waiting for P2...`;
+      } else if (points.length === 2) {
+        const dx = Math.abs(points[1].x - points[0].x);
+        const dy = Math.abs(points[1].y - points[0].y);
+
+        const p1 = points[0];
+        const p2 = points[1];
+
+        resultDiv.innerHTML = `
+          P1 = (${p1.x}, ${p1.y}), P2 = (${p2.x}, ${p2.y})<br>
+          Δx_pixels = ${dx}, Δy_pixels = ${dy}<br>
+          Computing...
+        `;
+
+        fetch("/calculate", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({p1: p1, p2: p2})
+        })
+        .then(res => res.json())
+        .then(result => {
+          resultDiv.innerHTML = `
+            P1 = (${p1.x}, ${p1.y}), P2 = (${p2.x}, ${p2.y})<br>
+            Δx_pixels = ${dx}, Δy_pixels = ${dy}<br>
+            ΔX_world = ${result.dX} cm<br>
+            ΔY_world = ${result.dY} cm<br>
+            Distance = ${result.distance} cm
+          `;
+        })
+        .catch(err => {
+          resultDiv.innerHTML = "Error: " + err;
+          console.error(err);
+        });
+
+        points = []; // reset after sending
+      }
+    });
+  </script>
+</body>
+</html>
